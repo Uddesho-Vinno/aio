@@ -472,8 +472,8 @@
             appContainer.classList.remove('hidden');
             appContainer.classList.add('flex');
             document.body.dataset.role = currentUser.role;
-            userGreeting.textContent = `স্বাগতম, ${currentUser.id} (${currentUser.role})`;
-            initializeAppData();
+            userGreeting.textContent = `Hi, ${currentUser.id}`; // Updated Greeting Message
+            initializeApp();
         }
 
         function showLogin() {
@@ -482,7 +482,7 @@
             appContainer.classList.remove('flex');
         }
         
-        function initializeAppData() {
+        function initializeApp() {
             applyDarkMode();
             updateFeedbackButtonState();
 
@@ -593,9 +593,28 @@
         
         function toggleChangelog(button, file) { if (!changelogPopover.classList.contains('hidden') && changelogPopover.dataset.fileId === file.id.toString()) { changelogPopover.classList.add('hidden'); return; } changelogPopover.innerHTML = file.changelog.replace(/\n/g, '<br>'); changelogPopover.dataset.fileId = file.id; const rect = button.getBoundingClientRect(); changelogPopover.style.left = `${rect.left}px`; changelogPopover.style.top = `${rect.bottom + 8}px`; changelogPopover.classList.remove('hidden'); }
         function renderContent() { const defaultMessage = '<div style="padding: 2rem; text-align: center; color: #6b7280;">প্রিভিউ দেখার জন্য একটি ফাইল সিলেক্ট করুন।</div>'; if (activeFileId) { const activeFile = db.files.find(f => f.id === activeFileId); outputFrame.srcdoc = activeFile ? activeFile.content : 'ফাইল পাওয়া যায়নি।'; } else { outputFrame.srcdoc = defaultMessage; } }
-        outputFrame.onload = () => { try { if (outputFrame.contentWindow && outputFrame.contentWindow.document.body) { const contentHeight = outputFrame.contentWindow.document.body.scrollHeight; outputFrame.style.height = `${Math.max(contentHeight, 900)}px`; } } catch (e) { /* cross-origin error */ } };
+        
+        outputFrame.onload = () => {
+            try {
+                const iFrameDoc = outputFrame.contentWindow.document;
+                const iFrameBody = iFrameDoc.body;
+                if (iFrameBody) {
+                    // ডিফল্টভাবে প্রিভিউ ৯০% স্কেলে দেখানোর জন্য।
+                    iFrameBody.style.zoom = 0.9;
+                    
+                    // জুম করা কন্টেন্টের উপর ভিত্তি করে iframe-এর উচ্চতা আরও সঠিকভাবে ঠিক করা।
+                    // getBoundingClientRect() ব্যবহার করলে জুম করা অবস্থায়ও সঠিক উচ্চতা পাওয়া যায়।
+                    const contentHeight = iFrameDoc.documentElement.getBoundingClientRect().height;
+                    outputFrame.style.height = `${Math.max(contentHeight, 900)}px`;
+                }
+            } catch (e) {
+                console.error("Could not access iframe content to apply zoom/resize.", e);
+                // srcdoc ব্যবহারের কারণে এটি সাধারণত নিরাপদ, কিন্তু একটি ফলব্যাক রাখা হলো।
+            }
+        };
+
         function deleteFile(fileId, fileTitle) { showConfirm(`আপনি কি "${fileTitle}" ফাইলটি ডিলিট করতে নিশ্চিত?`, () => { db.files = db.files.filter(f => f.id !== fileId); if (activeFileId === fileId) { activeFileId = db.files.length > 0 ? db.files[0].id : null; updateFeedbackButtonState(); } saveDatabase(); renderButtons(); renderContent(); }); }
-        uploadBtn.addEventListener('click', () => { const title = fileTitleInput.value.trim(); const file = htmlFileInput.files[0]; if (!title || !file) { alert('অনুগ্রহ করে টাইটেল এবং ফাইল উভয়ই দিন।'); return; } const reader = new FileReader(); reader.onload = (e) => { const newFile = { id: Date.now(), title, content: e.target.result, version: 'v1.0', lastUpdated: Date.now(), changelog: "প্রথম ভার্সন আপলোড করা হয়েছে।" }; db.files.push(newFile); activeFileId = newFile.id; updateFeedbackButtonState(); saveDatabase(); renderButtons(); renderContent(); fileTitleInput.value = ''; htmlFileInput.value = ''; }; reader.readAsText(file); });
+        uploadBtn.addEventListener('click', () => { const title = fileTitleInput.value.trim(); const file = htmlFileInput.files[0]; if (!title || !file) { alert('অনুগ্রহ করে টাইটেল এবং ফাইল উভয়ই দিন।'); return; } const reader = new FileReader(); reader.onload = (e) => { const newFile = { id: Date.now(), title, content: e.target.result, version: 'v1.0', lastUpdated: Date.now(), changelog: "প্রথম ভার্সন আপলোড করা হয়েছে।" }; db.files.push(newFile); activeFileId = newFile.id; updateFeedbackButtonState(); saveDatabase(); renderButtons(); renderContent(); fileTitleInput.value = ''; htmlFileInput.value = ''; }; reader.readAsText(file); });
         function openEditFileModal(file) { fileToEdit = file; document.getElementById('edit-file-title').value = file.title; document.getElementById('edit-file-version').value = file.version || 'v1.0'; editFileChangelogInput.value = file.changelog || ''; editFileModal.classList.remove('hidden'); editFileChangelogInput.focus(); }
         function openCodeEditorModal(file) { fileToEdit = file; codeEditor.value = file.content; codeEditorModal.classList.remove('hidden'); codeEditor.focus(); }
         function saveFileChanges() { const newTitle = document.getElementById('edit-file-title').value.trim(); const newVersion = document.getElementById('edit-file-version').value.trim(); const newChangelog = editFileChangelogInput.value.trim(); const errorEl = document.getElementById('edit-file-error'); errorEl.textContent = ''; if (!newTitle || !newVersion) { errorEl.textContent = 'নাম এবং ভার্সন উভয়ই পূরণ করুন।'; return; } const fileIndex = db.files.findIndex(f => f.id === fileToEdit.id); if(fileIndex > -1) { db.files[fileIndex].title = newTitle; db.files[fileIndex].version = newVersion; db.files[fileIndex].changelog = newChangelog; db.files[fileIndex].lastUpdated = Date.now(); saveDatabase(); renderButtons(); editFileModal.classList.add('hidden'); } }
